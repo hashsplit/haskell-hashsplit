@@ -7,7 +7,7 @@ import Zhp
 
 import Data.Default.Class (Default)
 
--- | An instance 'RollingHash' is a rolling hash function:
+-- | An instance of 'RollingHash' is a rolling hash function:
 --
 -- https://en.wikipedia.org/wiki/Rolling_hash
 --
