@@ -61,7 +61,7 @@ addByte newByte SplitState{ringBuf, hashState, chunk, config} = do
         don'tSplit
     else if chunkLen == cfgMaxSize config then
         split
-    else if digest state `matches` cfgThreshold config then
+    else if digest state' `matches` cfgThreshold config then
         split
     else
         don'tSplit
