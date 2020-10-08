@@ -63,8 +63,14 @@ library
   other-modules:
       HashSplit.Internal.RingBuffer
     , HashSplit.Internal.Chunk
+
 test-suite tests
   import: shared-opts
+  build-depends:
+      hashsplit
+    , aeson ^>=1.5.4
+    , containers ^>=0.6.4
+    , directory ^>=1.3.6
   type: exitcode-stdio-1.0
   hs-source-dirs: tests
   main-is: Main.hs
