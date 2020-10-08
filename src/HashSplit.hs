@@ -2,19 +2,24 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns   #-}
 {-# LANGUAGE StrictData       #-}
+{-# LANGUAGE TypeFamilies     #-}
 module HashSplit
     ( Config(..)
     , SplitState
     , newState
     , addByte
+    , addBytes
+    , finish
+    , split
     ) where
 
 import Zhp
 
 import           Control.Monad.ST
-import qualified Data.ByteString    as BS
-import           Data.Default.Class (def)
-import           Data.Proxy         (Proxy)
+import qualified Data.ByteString      as BS
+import           Data.Default.Class   (def)
+import           Data.MonoTraversable (Element, MonoFoldable(otoList))
+import           Data.Proxy           (Proxy)
 import           Data.STRef
 
 import           HashSplit.Classes
@@ -37,6 +42,16 @@ data SplitState s h = SplitState
     , config    :: Config h
     }
 
+split :: (MonoFoldable mono, Element mono ~ Word8, RollingHash h, Bits (Digest h), Num (Digest h))
+    => Config h -> mono -> [BS.ByteString]
+split cfg input = runST $ do
+    state <- newState cfg
+    chunks <- addBytes input state
+    maybeFinalChunk <- finish state
+    case maybeFinalChunk of
+        Nothing    -> pure chunks
+        Just chunk -> pure $ chunks <> [chunk]
+
 newState :: RollingHash h => Config h -> ST s (SplitState s h)
 newState config = do
     ringBuf <- RingBuffer.new (windowSize (cfgHash config))
@@ -48,6 +63,26 @@ newState config = do
         , chunk
         , config
         }
+
+finish :: SplitState s h -> ST s (Maybe (BS.ByteString))
+finish SplitState{chunk} = do
+    chunkLen <- Chunk.length chunk
+    if chunkLen == 0 then
+        pure Nothing
+    else
+        Just <$> Chunk.takeBytes chunk
+
+addBytes :: (MonoFoldable mono, Element mono ~ Word8, RollingHash h, Bits (Digest h), Num (Digest h))
+    => mono -> SplitState s h -> ST s [BS.ByteString]
+addBytes newBytes state =
+    go (otoList newBytes)
+  where
+    go [] = pure []
+    go (b:bs) = do
+        r <- addByte b state
+        case r of
+            Nothing    -> go bs
+            Just chunk -> (chunk:) <$> go bs
 
 addByte :: (RollingHash h, Bits (Digest h), Num (Digest h)) => Word8 -> SplitState s h -> ST s (Maybe BS.ByteString)
 addByte newByte SplitState{ringBuf, hashState, chunk, config} = do
