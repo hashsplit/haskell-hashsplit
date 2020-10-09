@@ -43,6 +43,7 @@ addByte byte chunk = do
     len <- readSTRef $ lenRef chunk
     vec <- readSTRef $ vecRef chunk
     SMV.write vec len byte
+    writeSTRef (lenRef chunk) $! len + 1
 
 -- | Ensure that there is space for at least one more byte in the chunk's buffer.
 ensureSpace :: Chunk s -> ST s ()
