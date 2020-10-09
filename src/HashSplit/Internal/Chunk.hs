@@ -66,7 +66,7 @@ reset Chunk{lenRef} =
 readBytes :: Chunk s -> ST s BS.ByteString
 readBytes Chunk{lenRef, vecRef} = do
     len <- readSTRef lenRef
-    vec <- SMV.take (len - 1) <$> readSTRef vecRef
+    vec <- SMV.take len <$> readSTRef vecRef
     vec' <- SV.freeze vec
     let (fptr, offset, len) = SV.unsafeToForeignPtr vec'
     pure $ PS fptr offset len
