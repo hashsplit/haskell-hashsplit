@@ -33,7 +33,7 @@ instance RollingHash RRS1 where
     windowSize _ = fromIntegral wSize
 
     roll add remove RRS1{a, b} =
-        let a' = a - (fromIntegral remove + charOffset) + (fromIntegral add + charOffset) in
+        let a' = a - fromIntegral remove + fromIntegral add in
         RRS1
             { a = a'
             , b = b - wSize * (fromIntegral remove + charOffset) + a'
