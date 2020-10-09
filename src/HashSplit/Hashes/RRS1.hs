@@ -23,7 +23,7 @@ wSize = 64
 
 instance Default RRS1 where
     def = RRS1
-        { a = charOffset
+        { a = charOffset * wSize
         , b = charOffset * wSize * (wSize - 1)
         }
 
