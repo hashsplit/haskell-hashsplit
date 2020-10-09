@@ -1,8 +1,11 @@
+{-# LANGUAGE BangPatterns   #-}
 {-# LANGUAGE DeriveGeneric  #-}
 {-# LANGUAGE NamedFieldPuns #-}
 module Main where
 
 import Zhp
+
+import Test.Hspec
 
 import Data.Aeson
 import GHC.Generics     (Generic)
@@ -50,44 +53,38 @@ loadInput :: FilePath -> IO LBS.ByteString
 loadInput path =
     LBS.readFile (path <> "/input")
 
-runCase :: String -> Case -> LBS.ByteString -> IO ()
-runCase name Case{config, sizes} input = do
-    putStrLn $ "Running test case: " <> name
-    cfg <- parseConfig config
-    let chunks = HS.split cfg input
+runCase :: String -> Case -> LBS.ByteString -> Spec
+runCase name Case{config, sizes} input = describe name $ do
+    let cfg = parseConfig config
+        chunks = HS.split cfg input
         actualSizes = map BS.length chunks
-    when (sizes /= actualSizes) $ do
-        putStrLn $
-            "Wrong chunks; expected:\n\n\t" <>
-            show sizes <> "\n\n" <>
-            "But got:\n\n\t" <>
-            show actualSizes
-        error "wrong chunks"
-    when (LBS.concat (map LBS.fromStrict chunks) /= input) $ do
-        error "Failed 'concat chunks == input'."
+    it "Should produce the right sizes" $
+        actualSizes `shouldBe` sizes
+    it "Should produce chunks that match the input" $
+        LBS.concat (map LBS.fromStrict chunks) `shouldBe` input
 
-runDir :: FilePath -> IO ()
-runDir path = do
-    putStrLn $ "Running tests in " <> path
-    configs <- loadConfigs path
-    input <- loadInput path
+runDir :: FilePath -> Spec
+runDir path = describe ("Tests under " <> path) $ do
+    configs <- runIO $ loadConfigs path
+    input <- runIO $ loadInput path
     let caseList = M.toList (cases configs)
     for_ caseList $ \(name, c) ->
         runCase name c input
 
-runSubdirsOf :: FilePath -> IO ()
+runSubdirsOf :: FilePath -> Spec
 runSubdirsOf path = do
-    putStrLn $ "Running all tests under " <> path
-    dirs <- listDirectory path
-    for_ dirs $ \d ->
-        runDir (path <> "/" <> d)
+    describe ("Tests under " <> path) $ do
+        dirs <- runIO $ listDirectory path
+        for_ dirs $ \d ->
+            runDir (path <> "/" <> d)
 
-parseConfig :: Config -> IO (HS.Config RRS1)
-parseConfig config = do
-    hashFn <- case hash config of
-        "rrs1" -> pure (Proxy :: Proxy RRS1)
-        fnName -> error $ "Unsupported hash function: " <> fnName
-    pure HS.Config
+parseConfig :: Config -> HS.Config RRS1
+parseConfig config =
+    let !hashFn = case hash config of
+            "rrs1" -> (Proxy :: Proxy RRS1)
+            fnName -> error $ "Unsupported hash function: " <> fnName
+    in
+    HS.Config
         { HS.cfgMinSize = minSize config
         , HS.cfgMaxSize = maxSize config
         , HS.cfgHash = hashFn
@@ -95,4 +92,4 @@ parseConfig config = do
         }
 
 main :: IO ()
-main = runSubdirsOf "testdata/tests"
+main = hspec $ runSubdirsOf "testdata/tests"
