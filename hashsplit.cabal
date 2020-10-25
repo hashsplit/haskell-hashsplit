@@ -59,6 +59,7 @@ library
   exposed-modules:
       HashSplit
     , HashSplit.Classes
+    , HashSplit.Hashes.CP32
     , HashSplit.Hashes.RRS1
   other-modules:
       HashSplit.Internal.RingBuffer

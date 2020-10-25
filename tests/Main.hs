@@ -1,6 +1,7 @@
-{-# LANGUAGE BangPatterns   #-}
-{-# LANGUAGE DeriveGeneric  #-}
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE DeriveGeneric    #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs            #-}
+{-# LANGUAGE NamedFieldPuns   #-}
 module Main where
 
 import Zhp
@@ -15,6 +16,8 @@ import qualified Data.ByteString       as BS
 import qualified Data.ByteString.Lazy  as LBS
 import qualified Data.Map.Strict       as M
 import qualified HashSplit             as HS
+import           HashSplit.Classes
+import           HashSplit.Hashes.CP32 (CP32)
 import           HashSplit.Hashes.RRS1 (RRS1)
 
 data Configs = Configs
@@ -53,10 +56,13 @@ loadInput :: FilePath -> IO LBS.ByteString
 loadInput path =
     LBS.readFile (path <> "/input")
 
+split :: AnyConfig -> LBS.ByteString -> [BS.ByteString]
+split (AnyConfig cfg) input = HS.split cfg input
+
 runCase :: String -> Case -> LBS.ByteString -> Spec
 runCase name Case{config, sizes} input = describe name $ do
     let cfg = parseConfig config
-        chunks = HS.split cfg input
+        chunks = split cfg input
         actualSizes = map BS.length chunks
     it "Should produce the right sizes" $
         actualSizes `shouldBe` sizes
@@ -78,18 +84,24 @@ runSubdirsOf path = do
         for_ dirs $ \d ->
             runDir (path <> "/" <> d)
 
-parseConfig :: Config -> HS.Config RRS1
+data AnyConfig where
+    AnyConfig :: (RollingHash h, Bits (Digest h), Num (Digest h)) => HS.Config h -> AnyConfig
+
+parseConfig :: Config -> AnyConfig
 parseConfig config =
-    let !hashFn = case hash config of
-            "rrs1" -> (Proxy :: Proxy RRS1)
-            fnName -> error $ "Unsupported hash function: " <> fnName
+    let mkConfig :: (RollingHash h, Bits (Digest h), Num (Digest h)) => Proxy h -> AnyConfig
+        mkConfig proxy =
+            AnyConfig HS.Config
+                { HS.cfgMinSize = minSize config
+                , HS.cfgMaxSize = maxSize config
+                , HS.cfgHash = proxy
+                , HS.cfgThreshold = threshold config
+                }
     in
-    HS.Config
-        { HS.cfgMinSize = minSize config
-        , HS.cfgMaxSize = maxSize config
-        , HS.cfgHash = hashFn
-        , HS.cfgThreshold = threshold config
-        }
+    case hash config of
+        "rrs1" -> mkConfig (Proxy :: Proxy RRS1)
+        "cp32" -> mkConfig (Proxy :: Proxy CP32)
+        fnName -> error $ "Unsupported hash function: " <> fnName
 
 main :: IO ()
 main = hspec $ runSubdirsOf "testdata/tests"
